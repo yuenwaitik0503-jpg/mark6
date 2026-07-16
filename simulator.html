@@ -3,109 +3,65 @@
 <head>
     <style>
         body { margin: 0; display: flex; flex-direction: column; align-items: center; background: #000; color: #d4af37; font-family: sans-serif; }
-        #canvas-container { position: relative; width: 600px; height: 500px; }
-        canvas { display: block; }
-        .controls { margin-top: 20px; display: flex; gap: 15px; }
+        #canvas-container { position: relative; width: 600px; height: 600px; }
+        .controls { margin-top: 20px; }
         button { padding: 12px 24px; cursor: pointer; background: #d4af37; border: none; border-radius: 5px; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div id="canvas-container">
-        <canvas id="world"></canvas>
-    </div>
+    <div id="canvas-container"><canvas id="world"></canvas></div>
     <div class="controls">
-        <button onmousedown="startSpin()" onmouseup="stopSpin()">按住旋轉</button>
-        <button onclick="draw()">抽取</button>
+        <button onclick="startRace()">開始競速</button>
         <button onclick="location.reload()">重設</button>
     </div>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script>
-        const { Engine, Render, Runner, Bodies, Composite, Body, Events, Vector } = Matter;
-        const canvas = document.getElementById('world');
+        const { Engine, Render, Runner, Bodies, Composite, Events, Detector } = Matter;
         const engine = Engine.create();
         const render = Render.create({
-            canvas: canvas,
+            canvas: document.getElementById('world'),
             engine: engine,
-            options: { width: 600, height: 500, wireframes: false, background: '#111' }
+            options: { width: 600, height: 600, wireframes: false, background: '#111' }
         });
 
-        const centerX = 300, centerY = 250, cageRadius = 200;
+        // 建立賽道 (簡單的 Z 字形路徑)
+        const track = [
+            Bodies.rectangle(150, 100, 200, 10, { isStatic: true, angle: 0.3 }),
+            Bodies.rectangle(450, 250, 200, 10, { isStatic: true, angle: -0.3 }),
+            Bodies.rectangle(150, 400, 200, 10, { isStatic: true, angle: 0.3 }),
+            Bodies.rectangle(300, 550, 400, 10, { isStatic: true }) // 終點區
+        ];
+        Composite.add(engine.world, track);
 
-        // 建立旋轉籠子 (由多個牆組成)
-        const cage = Composite.create();
-        const segments = 60;
-        for (let i = 0; i < segments; i++) {
-            const angle = (i / segments) * Math.PI * 2;
-            const x = centerX + Math.cos(angle) * cageRadius;
-            const y = centerY + Math.sin(angle) * cageRadius;
-            Composite.add(cage, Bodies.rectangle(x, y, 20, 20, { 
-                isStatic: false, 
-                angle: angle 
-            }));
-        }
-        
-        // 使用 Constraint 將籠子中心固定但允許旋轉
-        const anchor = Bodies.circle(centerX, centerY, 10, { isStatic: true, render: { visible: false } });
-        const spinConstraint = Matter.Constraint.create({
-            bodyA: anchor,
-            bodyB: cage.bodies[0],
-            pointA: { x: 0, y: 0 },
-            pointB: { x: 0, y: 0 },
-            stiffness: 0.1
-        });
-        Composite.add(engine.world, [cage, anchor, spinConstraint]);
-
-        // 建立球
+        // 建立 20 個球
         const balls = [];
         const colors = ['#e63946', '#f1faee', '#a8dadc', '#457b9d', '#1d3557'];
         for(let i=1; i<=20; i++) {
-            const b = Bodies.circle(centerX + (Math.random()-0.5)*100, centerY + (Math.random()-0.5)*100, 13, {
-                restitution: 0.5, friction: 0.01, render: { fillStyle: colors[i % 5] }
+            let b = Bodies.circle(50 + (i*20), -100 - (i*50), 12, {
+                restitution: 0.6, render: { fillStyle: colors[i % 5] }
             });
             b.label = i.toString();
             balls.push(b);
         }
         Composite.add(engine.world, balls);
 
-        // 旋轉控制
-        let spinning = false;
-        function startSpin() { spinning = true; }
-        function stopSpin() { spinning = false; }
-
-        Events.on(engine, 'beforeUpdate', () => {
-            if (spinning) {
-                // 對籠子施加旋轉力
-                cage.bodies.forEach(part => {
-                    Body.setAngularVelocity(part, 0.2);
-                });
-            }
-        });
-
-        Events.on(render, 'afterRender', function() {
-            const ctx = render.context;
-            // 繪製黃圈 (跟隨籠子的位置)
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, cageRadius, 0, Math.PI * 2);
-            ctx.strokeStyle = '#d4af37';
-            ctx.lineWidth = 8;
-            ctx.stroke();
-            
-            balls.forEach(b => {
-                ctx.fillStyle = '#000';
-                ctx.font = 'bold 12px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText(b.label, b.position.x, b.position.y + 5);
+        // 競速結果捕捉
+        const winners = [];
+        Events.on(engine, 'collisionStart', (event) => {
+            event.pairs.forEach(pair => {
+                let ball = pair.bodyA.label !== "undefined" ? pair.bodyA : pair.bodyB;
+                if (pair.bodyB.position.y > 530 && winners.length < 4 && !winners.includes(ball.label)) {
+                    winners.push(ball.label);
+                    ball.render.fillStyle = '#ffff00'; // 到達終點變黃色
+                    if(winners.length === 4) alert("前 4 名號碼: " + winners.join(", "));
+                }
             });
         });
 
-        function draw() {
-            if (balls.length > 0) {
-                const b = balls[Math.floor(Math.random() * balls.length)];
-                alert("抽中號碼: " + b.label);
-                Composite.remove(engine.world, b);
-                balls.splice(balls.indexOf(b), 1);
-            }
+        function startRace() {
+            // 讓球體受到重力自然落下
+            engine.world.gravity.y = 1;
         }
 
         Render.run(render);
