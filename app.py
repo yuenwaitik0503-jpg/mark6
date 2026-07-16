@@ -1,3 +1,10 @@
+import streamlit as st
+import streamlit.components.v1 as components
+
+st.title("攪珠動畫模擬器")
+
+# 使用三重引號確保內容被視為完整的字串
+html_code = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -5,7 +12,7 @@
         body { margin: 0; display: flex; flex-direction: column; align-items: center; background: #1a1a1a; color: white; font-family: sans-serif; }
         #canvas-container { width: 500px; height: 500px; border-radius: 50%; border: 8px solid #444; background: #222; margin-top: 20px; }
         .controls { margin-top: 20px; display: flex; gap: 10px; }
-        button { padding: 10px 20px; cursor: pointer; }
+        button { padding: 10px 20px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -29,7 +36,7 @@
                 options: { width: 500, height: 500, wireframes: false, background: 'transparent' }
             });
 
-            // 1. 建立邊界
+            // 建立邊界
             const walls = [];
             for (let i = 0; i < 120; i++) {
                 const angle = (i / 120) * Math.PI * 2;
@@ -39,14 +46,14 @@
             }
             Composite.add(engine.world, walls);
 
-            // 2. 建立球體
+            // 建立球體
             const balls = [];
             const createBalls = () => {
                 balls.forEach(b => Composite.remove(engine.world, b));
                 balls.length = 0;
                 for (let i = 1; i <= 20; i++) {
                     const b = Bodies.circle(250 + Math.random()*100 - 50, 250 + Math.random()*100 - 50, 16, {
-                        restitution: 0.9, // 增加彈性
+                        restitution: 0.9,
                         render: { fillStyle: '#ff3b30' }
                     });
                     balls.push(b);
@@ -55,28 +62,25 @@
             };
             createBalls();
 
-            // 3. 強力攪動 (數值調大)
+            // 強力攪動：加大力道
             document.getElementById('btn-mix').onclick = () => {
                 let count = 0;
                 let mixInterval = setInterval(() => {
                     balls.forEach(b => {
-                        // 力道大幅增強
-                        Body.applyForce(b, b.position, { x: (Math.random()-0.5)*0.2, y: (Math.random()-0.5)*0.2 });
+                        Body.applyForce(b, b.position, { x: (Math.random()-0.5)*0.5, y: (Math.random()-0.5)*0.5 });
                     });
                     if (++count > 40) clearInterval(mixInterval);
                 }, 50);
             };
 
-            // 4. 抽取號碼
+            // 抽取號碼
             document.getElementById('btn-draw').onclick = () => {
                 if (balls.length > 0) {
                     const idx = Math.floor(Math.random() * balls.length);
                     const chosen = balls[idx];
-                    // 視覺效果：將選中球變色
-                    chosen.render.fillStyle = '#ffff00';
-                    // 彈出提示
+                    chosen.render.fillStyle = '#ffff00'; // 變黃色
                     alert("抽中球號：" + (idx + 1));
-                    // 移除選中球
+                    
                     setTimeout(() => {
                         Composite.remove(engine.world, chosen);
                         balls.splice(idx, 1);
@@ -92,3 +96,6 @@
     </script>
 </body>
 </html>
+"""
+
+components.html(html_code, height=700)
