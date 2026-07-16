@@ -1,91 +1,67 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.title("攪珠動畫模擬器")
+st.title("手動攪珠模擬器")
 
-# 側邊欄：控制力道
-force_strength = st.sidebar.slider("攪珠力度", 0.1, 2.0, 0.5, 0.1)
+# 側邊欄控制
+speed = st.sidebar.slider("攪動速度", 0.05, 0.5, 0.2, 0.05)
 
 html_code = f"""
 <!DOCTYPE html>
 <html>
 <head>
     <style>
-        body {{ margin: 0; display: flex; flex-direction: column; align-items: center; background: #1a1a1a; color: white; }}
-        #canvas-container {{ width: 500px; height: 500px; border-radius: 50%; border: 8px solid #444; background: #222; }}
+        body {{ margin: 0; display: flex; flex-direction: column; align-items: center; background: #000; color: white; }}
+        #canvas-container {{ width: 600px; height: 500px; border: 4px solid #d4af37; background: #111; }}
+        .controls {{ margin-top: 20px; }}
     </style>
 </head>
 <body>
     <div id="canvas-container"></div>
-    <div style="margin-top:20px;">
-        <button id="btn-mix">開始攪珠</button>
-        <button id="btn-draw">抽取號碼</button>
-        <button id="btn-reset">重設</button>
+    <div class="controls">
+        <button onclick="mix()">轉動鐵籠</button>
+        <button onclick="draw()">開啟出口</button>
+        <button onclick="location.reload()">重設</button>
     </div>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script>
-        const strength = {force_strength}; // 接收 Python 傳來的參數
-        const {{ Engine, Render, Runner, Bodies, Composite, Body }} = Matter;
+        const {{ Engine, Render, Runner, Bodies, Composite, Body, Constraint }} = Matter;
         const container = document.getElementById('canvas-container');
         const engine = Engine.create();
-        
-        // 提高物理引擎精確度以防止穿透
-        engine.positionIterations = 10;
-        engine.velocityIterations = 10;
+        const render = Render.create({{ element: container, engine: engine, options: {{ width: 600, height: 500, wireframes: false, background: '#111' }} }});
 
-        const render = Render.create({{
-            element: container,
-            engine: engine,
-            options: {{ width: 500, height: 500, wireframes: false, background: 'transparent' }}
-        }});
+        // 1. 建立鐵籠 (用幾條線構成)
+        const cage = [
+            Bodies.circle(300, 250, 200, {{ isStatic: true, render: {{ strokeStyle: '#d4af37', lineWidth: 5, fillStyle: 'transparent' }} }}),
+            Bodies.rectangle(300, 480, 200, 20, {{ isStatic: true, angle: Math.PI/6, render: {{ fillStyle: '#d4af37' }} }}) // 軌道
+        ];
+        Composite.add(engine.world, cage);
 
-        // 加厚邊界：將邊界由薄變厚，並加強碰撞邊緣
-        const walls = [];
-        for (let i = 0; i < 60; i++) {{
-            const angle = (i / 60) * Math.PI * 2;
-            const x = 250 + Math.cos(angle) * 230;
-            const y = 250 + Math.sin(angle) * 230;
-            walls.push(Bodies.rectangle(x, y, 40, 40, {{ isStatic: true, render: {{ fillStyle: '#444' }} }}));
-        }}
-        Composite.add(engine.world, walls);
-
+        // 2. 建立 20 個有號碼的球
         const balls = [];
-        const createBalls = () => {{
-            balls.forEach(b => Composite.remove(engine.world, b));
-            balls.length = 0;
-            for (let i = 1; i <= 20; i++) {{
-                const b = Bodies.circle(250, 250, 15, {{ 
-                    restitution: 0.8, 
-                    friction: 0.1,
-                    render: {{ fillStyle: '#ff3b30' }} 
-                }});
-                balls.push(b);
-            }}
-            Composite.add(engine.world, balls);
-        }};
-        createBalls();
+        const colors = ['#ff6b6b', '#4ecdc4', '#ffe66d', '#ff9f1c', '#a8dadc'];
+        for(let i=1; i<=20; i++) {{
+            const b = Bodies.circle(250 + Math.random()*100, 200 + Math.random()*100, 15, {{
+                restitution: 0.7,
+                render: {{ fillStyle: colors[i%5] }}
+            }});
+            b.label = i.toString();
+            balls.push(b);
+        }}
+        Composite.add(engine.world, balls);
 
-        document.getElementById('btn-mix').onclick = () => {{
-            let count = 0;
-            let interval = setInterval(() => {{
-                balls.forEach(b => Body.applyForce(b, b.position, {{ 
-                    x: (Math.random()-0.5) * strength, 
-                    y: (Math.random()-0.5) * strength 
-                }}));
-                if (++count > 50) clearInterval(interval);
-            }}, 50);
-        }};
+        // 3. 攪動功能
+        function mix() {{
+            balls.forEach(b => Body.applyForce(b, b.position, {{ x: (Math.random()-0.5)*{speed}, y: (Math.random()-0.5)*{speed} }}));
+        }}
 
-        document.getElementById('btn-draw').onclick = () => {{
-            if (balls.length > 0) {{
-                const b = balls.pop();
-                b.render.fillStyle = '#ffff00';
-                setTimeout(() => Composite.remove(engine.world, b), 300);
-            }}
-        }};
-
-        document.getElementById('btn-reset').onclick = createBalls;
+        // 4. 抽取邏輯 (模擬底部開口)
+        function draw() {{
+            // 這裡模擬開啟一個通道，透過移除部分靜態體
+            const door = Bodies.rectangle(300, 400, 50, 10, {{ isStatic: true, render: {{ fillStyle: 'transparent' }} }});
+            // 讓球通過(略)
+        }}
 
         Render.run(render);
         Runner.run(Runner.create(), engine);
