@@ -1,3 +1,10 @@
+import streamlit as st
+import streamlit.components.v1 as components
+
+st.title("攪珠動畫模擬器")
+
+# 【關鍵修改】：確保整段 HTML 被包含在 """ ... """ 之中
+html_code = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -19,7 +26,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script>
         window.onload = () => {
-            const { Engine, Render, Runner, Bodies, Composite, Body, Events } = Matter;
+            const { Engine, Render, Runner, Bodies, Composite, Body } = Matter;
             const container = document.getElementById('canvas-container');
             const engine = Engine.create({ gravity: { y: 1.2 } });
             
@@ -29,7 +36,6 @@
                 options: { width: 500, height: 500, wireframes: false, background: 'transparent' }
             });
 
-            // 建立封閉圓形邊界
             const walls = [];
             for (let i = 0; i < 120; i++) {
                 const angle = (i / 120) * Math.PI * 2;
@@ -39,7 +45,6 @@
             }
             Composite.add(engine.world, walls);
 
-            // 建立球體
             const balls = [];
             const createBalls = () => {
                 balls.forEach(b => Composite.remove(engine.world, b));
@@ -55,10 +60,8 @@
             };
             createBalls();
 
-            // 攪動機制
-            let mixInterval;
             document.getElementById('btn-mix').onclick = () => {
-                mixInterval = setInterval(() => {
+                let mixInterval = setInterval(() => {
                     balls.forEach(b => Body.applyForce(b, b.position, { x: (Math.random()-0.5)*0.02, y: (Math.random()-0.5)*0.02 }));
                 }, 50);
                 setTimeout(() => clearInterval(mixInterval), 2000);
@@ -72,3 +75,6 @@
     </script>
 </body>
 </html>
+"""
+
+components.html(html_code, height=700)
