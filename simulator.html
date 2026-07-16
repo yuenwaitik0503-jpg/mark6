@@ -14,14 +14,14 @@
         <canvas id="world"></canvas>
     </div>
     <div class="controls">
-        <button onclick="mix()">攪珠</button>
+        <button onclick="toggleMix()">開始/停止攪動</button>
         <button onclick="draw()">抽取</button>
         <button onclick="location.reload()">重設</button>
     </div>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script>
-        const { Engine, Render, Runner, Bodies, Composite, Body, Events, Vector } = Matter;
+        const { Engine, Render, Runner, Bodies, Composite, Body, Events } = Matter;
         const canvas = document.getElementById('world');
         const engine = Engine.create();
         const render = Render.create({
@@ -32,55 +32,61 @@
 
         const centerX = 300, centerY = 250, cageRadius = 200;
 
-        function drawCage(ctx) {
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, cageRadius, 0, Math.PI * 2);
-            ctx.strokeStyle = '#d4af37';
-            ctx.lineWidth = 8;
-            ctx.stroke();
-        }
-
-        // 物理牆 (加厚與更密)
+        // 1. 物理牆 (固定不變)
         const walls = [];
         for (let i = 0; i < 100; i++) {
             const angle = (i / 100) * Math.PI * 2;
-            const x = centerX + Math.cos(angle) * (cageRadius + 10);
-            const y = centerY + Math.sin(angle) * (cageRadius + 10);
-            walls.push(Bodies.rectangle(x, y, 50, 50, { isStatic: true, angle: angle, render: { visible: false } }));
+            const x = centerX + Math.cos(angle) * (cageRadius + 5);
+            const y = centerY + Math.sin(angle) * (cageRadius + 5);
+            walls.push(Bodies.rectangle(x, y, 20, 20, { isStatic: true, render: { visible: false } }));
         }
         Composite.add(engine.world, walls);
 
+        // 2. 建立 3 支攪拌棍 (Compound Body)
+        const stirrer = Body.create({
+            parts: [
+                Bodies.rectangle(centerX, centerY, 300, 10, { isStatic: false }),
+                Bodies.rectangle(centerX, centerY, 10, 300, { isStatic: false })
+            ],
+            isStatic: true, // 透過手動更新角度旋轉
+            render: { fillStyle: '#d4af37' }
+        });
+        Composite.add(engine.world, stirrer);
+
+        // 3. 建立 20 個球
         const balls = [];
         const colors = ['#e63946', '#f1faee', '#a8dadc', '#457b9d', '#1d3557'];
         for(let i=1; i<=20; i++) {
-            const b = Bodies.circle(centerX + (Math.random()-0.5)*50, centerY + (Math.random()-0.5)*50, 15, {
-                restitution: 0.5, friction: 0.05, render: { fillStyle: colors[i % 5] }
+            const b = Bodies.circle(centerX + (Math.random()-0.5)*100, centerY + (Math.random()-0.5)*100, 15, {
+                restitution: 0.5, render: { fillStyle: colors[i % 5] }
             });
             b.label = i.toString();
             balls.push(b);
         }
         Composite.add(engine.world, balls);
 
-        // 強制拘束：每幀檢查球體，若超出範圍則硬拉回
+        // 攪動控制
+        let angle = 0;
+        let isMixing = false;
+        function toggleMix() { isMixing = !isMixing; }
+
         Events.on(engine, 'beforeUpdate', () => {
-            balls.forEach(b => {
-                const dist = Vector.magnitude(Vector.sub(b.position, {x: centerX, y: centerY}));
-                if (dist > cageRadius - 15) {
-                    // 將球拉回圓心方向
-                    const angle = Math.atan2(b.position.y - centerY, b.position.x - centerX);
-                    Body.setPosition(b, {
-                        x: centerX + Math.cos(angle) * (cageRadius - 16),
-                        y: centerY + Math.sin(angle) * (cageRadius - 16)
-                    });
-                    // 抵消向外的速度
-                    Body.setVelocity(b, { x: 0, y: 0 });
-                }
-            });
+            if (isMixing) {
+                angle += 0.05;
+                Body.setAngle(stirrer, angle);
+                Body.setPosition(stirrer, { x: centerX, y: centerY });
+            }
         });
 
         Events.on(render, 'afterRender', function() {
             const ctx = render.context;
-            drawCage(ctx);
+            // 繪製黃圈外框
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, cageRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = '#d4af37';
+            ctx.lineWidth = 8;
+            ctx.stroke();
+            // 繪製號碼
             balls.forEach(b => {
                 ctx.fillStyle = '#000';
                 ctx.font = 'bold 12px Arial';
@@ -88,15 +94,6 @@
                 ctx.fillText(b.label, b.position.x, b.position.y + 5);
             });
         });
-
-        function mix() {
-            balls.forEach(b => {
-                Body.applyForce(b, b.position, { 
-                    x: (Math.random()-0.5) * 0.5, 
-                    y: (Math.random()-0.5) * 0.5 
-                });
-            });
-        }
 
         function draw() {
             if (balls.length > 0) {
