@@ -21,66 +21,62 @@
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script>
-        const { Engine, Render, Runner, Bodies, Composite, Body, Events } = Matter;
+        const { Engine, Render, Runner, Bodies, Composite, Body, Events, Vector } = Matter;
         const canvas = document.getElementById('world');
         const engine = Engine.create();
-        // 提升物理引擎運算迭代次數，防止高速穿透
-        engine.positionIterations = 10;
-        engine.velocityIterations = 10;
-
         const render = Render.create({
             canvas: canvas,
             engine: engine,
             options: { width: 600, height: 500, wireframes: false, background: '#111' }
         });
 
-        // 視覺：鐵籠框架
+        const centerX = 300, centerY = 250, cageRadius = 200;
+
         function drawCage(ctx) {
             ctx.beginPath();
-            ctx.arc(300, 250, 200, 0, Math.PI * 2);
+            ctx.arc(centerX, centerY, cageRadius, 0, Math.PI * 2);
             ctx.strokeStyle = '#d4af37';
             ctx.lineWidth = 8;
             ctx.stroke();
         }
 
-        // 物理：加厚圓形圍牆 (牆體加厚以防球穿透)
+        // 物理牆 (加厚與更密)
         const walls = [];
-        const cageRadius = 200;
-        const centerX = 300;
-        const centerY = 250;
-        const segments = 80; // 增加細分數量
-
-        for (let i = 0; i < segments; i++) {
-            const angle = (i / segments) * Math.PI * 2;
+        for (let i = 0; i < 100; i++) {
+            const angle = (i / 100) * Math.PI * 2;
             const x = centerX + Math.cos(angle) * (cageRadius + 10);
             const y = centerY + Math.sin(angle) * (cageRadius + 10);
-            walls.push(Bodies.rectangle(x, y, 40, 40, { 
-                isStatic: true, 
-                angle: angle,
-                render: { visible: false } 
-            }));
+            walls.push(Bodies.rectangle(x, y, 50, 50, { isStatic: true, angle: angle, render: { visible: false } }));
         }
         Composite.add(engine.world, walls);
 
-        // 建立球體：修正初始位置，讓它們在圓圈內隨機散開，而非擠在圓心
         const balls = [];
         const colors = ['#e63946', '#f1faee', '#a8dadc', '#457b9d', '#1d3557'];
         for(let i=1; i<=20; i++) {
-            // 在圓圈內隨機分布初始位置
-            const angle = Math.random() * Math.PI * 2;
-            const dist = Math.random() * 100;
-            const x = centerX + Math.cos(angle) * dist;
-            const y = centerY + Math.sin(angle) * dist;
-            
-            const b = Bodies.circle(x, y, 15, {
-                restitution: 0.6, // 降低彈性減少反彈飛出
-                friction: 0.1,
-                render: { fillStyle: colors[i % 5] }
+            const b = Bodies.circle(centerX + (Math.random()-0.5)*50, centerY + (Math.random()-0.5)*50, 15, {
+                restitution: 0.5, friction: 0.05, render: { fillStyle: colors[i % 5] }
             });
             b.label = i.toString();
             balls.push(b);
         }
         Composite.add(engine.world, balls);
+
+        // 強制拘束：每幀檢查球體，若超出範圍則硬拉回
+        Events.on(engine, 'beforeUpdate', () => {
+            balls.forEach(b => {
+                const dist = Vector.magnitude(Vector.sub(b.position, {x: centerX, y: centerY}));
+                if (dist > cageRadius - 15) {
+                    // 將球拉回圓心方向
+                    const angle = Math.atan2(b.position.y - centerY, b.position.x - centerX);
+                    Body.setPosition(b, {
+                        x: centerX + Math.cos(angle) * (cageRadius - 16),
+                        y: centerY + Math.sin(angle) * (cageRadius - 16)
+                    });
+                    // 抵消向外的速度
+                    Body.setVelocity(b, { x: 0, y: 0 });
+                }
+            });
+        });
 
         Events.on(render, 'afterRender', function() {
             const ctx = render.context;
@@ -94,11 +90,10 @@
         });
 
         function mix() {
-            // 攪動時將力道分散，並限制最大速度
             balls.forEach(b => {
                 Body.applyForce(b, b.position, { 
-                    x: (Math.random()-0.5) * 0.25, 
-                    y: (Math.random()-0.5) * 0.25 
+                    x: (Math.random()-0.5) * 0.5, 
+                    y: (Math.random()-0.5) * 0.5 
                 });
             });
         }
