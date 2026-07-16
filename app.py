@@ -1,10 +1,3 @@
-import streamlit as st
-import streamlit.components.v1 as components
-
-st.title("攪珠動畫模擬器")
-
-# 【關鍵修改】：確保整段 HTML 被包含在 """ ... """ 之中
-html_code = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -28,7 +21,7 @@ html_code = """
         window.onload = () => {
             const { Engine, Render, Runner, Bodies, Composite, Body } = Matter;
             const container = document.getElementById('canvas-container');
-            const engine = Engine.create({ gravity: { y: 1.2 } });
+            const engine = Engine.create({ gravity: { y: 1 } });
             
             const render = Render.create({
                 element: container,
@@ -36,6 +29,7 @@ html_code = """
                 options: { width: 500, height: 500, wireframes: false, background: 'transparent' }
             });
 
+            // 1. 建立邊界
             const walls = [];
             for (let i = 0; i < 120; i++) {
                 const angle = (i / 120) * Math.PI * 2;
@@ -45,13 +39,14 @@ html_code = """
             }
             Composite.add(engine.world, walls);
 
+            // 2. 建立球體
             const balls = [];
             const createBalls = () => {
                 balls.forEach(b => Composite.remove(engine.world, b));
                 balls.length = 0;
                 for (let i = 1; i <= 20; i++) {
-                    const b = Bodies.circle(250 + Math.random()*50, 250 + Math.random()*50, 16, {
-                        restitution: 0.8,
+                    const b = Bodies.circle(250 + Math.random()*100 - 50, 250 + Math.random()*100 - 50, 16, {
+                        restitution: 0.9, // 增加彈性
                         render: { fillStyle: '#ff3b30' }
                     });
                     balls.push(b);
@@ -60,11 +55,33 @@ html_code = """
             };
             createBalls();
 
+            // 3. 強力攪動 (數值調大)
             document.getElementById('btn-mix').onclick = () => {
+                let count = 0;
                 let mixInterval = setInterval(() => {
-                    balls.forEach(b => Body.applyForce(b, b.position, { x: (Math.random()-0.5)*0.02, y: (Math.random()-0.5)*0.02 }));
+                    balls.forEach(b => {
+                        // 力道大幅增強
+                        Body.applyForce(b, b.position, { x: (Math.random()-0.5)*0.2, y: (Math.random()-0.5)*0.2 });
+                    });
+                    if (++count > 40) clearInterval(mixInterval);
                 }, 50);
-                setTimeout(() => clearInterval(mixInterval), 2000);
+            };
+
+            // 4. 抽取號碼
+            document.getElementById('btn-draw').onclick = () => {
+                if (balls.length > 0) {
+                    const idx = Math.floor(Math.random() * balls.length);
+                    const chosen = balls[idx];
+                    // 視覺效果：將選中球變色
+                    chosen.render.fillStyle = '#ffff00';
+                    // 彈出提示
+                    alert("抽中球號：" + (idx + 1));
+                    // 移除選中球
+                    setTimeout(() => {
+                        Composite.remove(engine.world, chosen);
+                        balls.splice(idx, 1);
+                    }, 500);
+                }
             };
 
             document.getElementById('btn-reset').onclick = createBalls;
@@ -75,6 +92,3 @@ html_code = """
     </script>
 </body>
 </html>
-"""
-
-components.html(html_code, height=700)
