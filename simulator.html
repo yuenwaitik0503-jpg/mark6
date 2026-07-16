@@ -14,14 +14,14 @@
         <canvas id="world"></canvas>
     </div>
     <div class="controls">
-        <button onclick="toggleMix()">開始/停止攪動</button>
+        <button onmousedown="startSpin()" onmouseup="stopSpin()">按住旋轉</button>
         <button onclick="draw()">抽取</button>
         <button onclick="location.reload()">重設</button>
     </div>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script>
-        const { Engine, Render, Runner, Bodies, Composite, Body, Events } = Matter;
+        const { Engine, Render, Runner, Bodies, Composite, Body, Events, Vector } = Matter;
         const canvas = document.getElementById('world');
         const engine = Engine.create();
         const render = Render.create({
@@ -32,56 +32,65 @@
 
         const centerX = 300, centerY = 250, cageRadius = 200;
 
-        // 1. 物理牆
-        const walls = [];
-        for (let i = 0; i < 100; i++) {
-            const angle = (i / 100) * Math.PI * 2;
-            const x = centerX + Math.cos(angle) * (cageRadius + 5);
-            const y = centerY + Math.sin(angle) * (cageRadius + 5);
-            walls.push(Bodies.rectangle(x, y, 20, 20, { isStatic: true, render: { visible: false } }));
+        // 建立旋轉籠子 (由多個牆組成)
+        const cage = Composite.create();
+        const segments = 60;
+        for (let i = 0; i < segments; i++) {
+            const angle = (i / segments) * Math.PI * 2;
+            const x = centerX + Math.cos(angle) * cageRadius;
+            const y = centerY + Math.sin(angle) * cageRadius;
+            Composite.add(cage, Bodies.rectangle(x, y, 20, 20, { 
+                isStatic: false, 
+                angle: angle 
+            }));
         }
-        Composite.add(engine.world, walls);
-
-        // 2. 改為單一長攪拌條 (解決無法跨區問題)
-        // 將寬度縮減，並且不與牆體固定，確保球可以穿過中心
-        const stirrer = Bodies.rectangle(centerX, centerY, 350, 15, {
-            isStatic: true,
-            render: { fillStyle: '#d4af37' }
+        
+        // 使用 Constraint 將籠子中心固定但允許旋轉
+        const anchor = Bodies.circle(centerX, centerY, 10, { isStatic: true, render: { visible: false } });
+        const spinConstraint = Matter.Constraint.create({
+            bodyA: anchor,
+            bodyB: cage.bodies[0],
+            pointA: { x: 0, y: 0 },
+            pointB: { x: 0, y: 0 },
+            stiffness: 0.1
         });
-        Composite.add(engine.world, stirrer);
+        Composite.add(engine.world, [cage, anchor, spinConstraint]);
 
-        // 3. 建立球 (稍微縮小半徑，增加流動性)
+        // 建立球
         const balls = [];
         const colors = ['#e63946', '#f1faee', '#a8dadc', '#457b9d', '#1d3557'];
         for(let i=1; i<=20; i++) {
             const b = Bodies.circle(centerX + (Math.random()-0.5)*100, centerY + (Math.random()-0.5)*100, 13, {
-                restitution: 0.6, friction: 0.01, render: { fillStyle: colors[i % 5] }
+                restitution: 0.5, friction: 0.01, render: { fillStyle: colors[i % 5] }
             });
             b.label = i.toString();
             balls.push(b);
         }
         Composite.add(engine.world, balls);
 
-        // 攪動控制：旋轉
-        let angle = 0;
-        let isMixing = false;
-        function toggleMix() { isMixing = !isMixing; }
+        // 旋轉控制
+        let spinning = false;
+        function startSpin() { spinning = true; }
+        function stopSpin() { spinning = false; }
 
         Events.on(engine, 'beforeUpdate', () => {
-            if (isMixing) {
-                angle += 0.06;
-                Body.setAngle(stirrer, angle);
-                Body.setPosition(stirrer, { x: centerX, y: centerY });
+            if (spinning) {
+                // 對籠子施加旋轉力
+                cage.bodies.forEach(part => {
+                    Body.setAngularVelocity(part, 0.2);
+                });
             }
         });
 
         Events.on(render, 'afterRender', function() {
             const ctx = render.context;
+            // 繪製黃圈 (跟隨籠子的位置)
             ctx.beginPath();
             ctx.arc(centerX, centerY, cageRadius, 0, Math.PI * 2);
             ctx.strokeStyle = '#d4af37';
             ctx.lineWidth = 8;
             ctx.stroke();
+            
             balls.forEach(b => {
                 ctx.fillStyle = '#000';
                 ctx.font = 'bold 12px Arial';
