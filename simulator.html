@@ -42,37 +42,34 @@
         }
         Composite.add(engine.world, walls);
 
-        // 2. 建立加長版攪拌棍 (長度由 300 改為 380)
-        const stirrer = Body.create({
-            parts: [
-                Bodies.rectangle(centerX, centerY, 380, 12, { isStatic: false }),
-                Bodies.rectangle(centerX, centerY, 12, 380, { isStatic: false })
-            ],
+        // 2. 改為單一長攪拌條 (解決無法跨區問題)
+        // 將寬度縮減，並且不與牆體固定，確保球可以穿過中心
+        const stirrer = Bodies.rectangle(centerX, centerY, 350, 15, {
             isStatic: true,
             render: { fillStyle: '#d4af37' }
         });
         Composite.add(engine.world, stirrer);
 
-        // 3. 建立球
+        // 3. 建立球 (稍微縮小半徑，增加流動性)
         const balls = [];
         const colors = ['#e63946', '#f1faee', '#a8dadc', '#457b9d', '#1d3557'];
         for(let i=1; i<=20; i++) {
-            const b = Bodies.circle(centerX + (Math.random()-0.5)*50, centerY + (Math.random()-0.5)*50, 15, {
-                restitution: 0.5, render: { fillStyle: colors[i % 5] }
+            const b = Bodies.circle(centerX + (Math.random()-0.5)*100, centerY + (Math.random()-0.5)*100, 13, {
+                restitution: 0.6, friction: 0.01, render: { fillStyle: colors[i % 5] }
             });
             b.label = i.toString();
             balls.push(b);
         }
         Composite.add(engine.world, balls);
 
-        // 攪動控制
+        // 攪動控制：旋轉
         let angle = 0;
         let isMixing = false;
         function toggleMix() { isMixing = !isMixing; }
 
         Events.on(engine, 'beforeUpdate', () => {
             if (isMixing) {
-                angle += 0.04; // 稍微放慢一點，避免球被高速甩出
+                angle += 0.06;
                 Body.setAngle(stirrer, angle);
                 Body.setPosition(stirrer, { x: centerX, y: centerY });
             }
