@@ -32,7 +32,7 @@
 
         const centerX = 300, centerY = 250, cageRadius = 200;
 
-        // 1. 物理牆 (固定不變)
+        // 1. 物理牆
         const walls = [];
         for (let i = 0; i < 100; i++) {
             const angle = (i / 100) * Math.PI * 2;
@@ -42,22 +42,22 @@
         }
         Composite.add(engine.world, walls);
 
-        // 2. 建立 3 支攪拌棍 (Compound Body)
+        // 2. 建立加長版攪拌棍 (長度由 300 改為 380)
         const stirrer = Body.create({
             parts: [
-                Bodies.rectangle(centerX, centerY, 300, 10, { isStatic: false }),
-                Bodies.rectangle(centerX, centerY, 10, 300, { isStatic: false })
+                Bodies.rectangle(centerX, centerY, 380, 12, { isStatic: false }),
+                Bodies.rectangle(centerX, centerY, 12, 380, { isStatic: false })
             ],
-            isStatic: true, // 透過手動更新角度旋轉
+            isStatic: true,
             render: { fillStyle: '#d4af37' }
         });
         Composite.add(engine.world, stirrer);
 
-        // 3. 建立 20 個球
+        // 3. 建立球
         const balls = [];
         const colors = ['#e63946', '#f1faee', '#a8dadc', '#457b9d', '#1d3557'];
         for(let i=1; i<=20; i++) {
-            const b = Bodies.circle(centerX + (Math.random()-0.5)*100, centerY + (Math.random()-0.5)*100, 15, {
+            const b = Bodies.circle(centerX + (Math.random()-0.5)*50, centerY + (Math.random()-0.5)*50, 15, {
                 restitution: 0.5, render: { fillStyle: colors[i % 5] }
             });
             b.label = i.toString();
@@ -72,7 +72,7 @@
 
         Events.on(engine, 'beforeUpdate', () => {
             if (isMixing) {
-                angle += 0.05;
+                angle += 0.04; // 稍微放慢一點，避免球被高速甩出
                 Body.setAngle(stirrer, angle);
                 Body.setPosition(stirrer, { x: centerX, y: centerY });
             }
@@ -80,13 +80,11 @@
 
         Events.on(render, 'afterRender', function() {
             const ctx = render.context;
-            // 繪製黃圈外框
             ctx.beginPath();
             ctx.arc(centerX, centerY, cageRadius, 0, Math.PI * 2);
             ctx.strokeStyle = '#d4af37';
             ctx.lineWidth = 8;
             ctx.stroke();
-            // 繪製號碼
             balls.forEach(b => {
                 ctx.fillStyle = '#000';
                 ctx.font = 'bold 12px Arial';
